@@ -69,6 +69,8 @@ public:
         // Mousepads
         POLARIS,
         ST100,
+        // Headset models
+        VOID,
         _MODEL_MAX
     };
     // Key layouts (ordered alphabetically by name)
