@@ -105,7 +105,7 @@ int os_usbsend(usbdevice* kb, const uchar* out_msg, int is_recv, const char* fil
     kern_return_t res = kIOReturnSuccess;
 
     if (kb->fwversion >= 0x120 || IS_V2_OVERRIDE(kb)){
-        int ep = (IS_SINGLE_EP(kb) || kb->fwversion >= 0x300 || IS_V3_OVERRIDE(kb)) ? 3 : 2;
+        int ep = (kb->fwversion >= 0x300 || IS_V3_OVERRIDE(kb)) ? 1 : (IS_SINGLE_EP(kb) ? 3 : 2); // IS_SINGLE_EP is only set like this for testing. It needs to default to 0.
         usb_iface_t h_usb = kb->ifusb[ep];
         hid_dev_t h_hid = kb->ifhid[ep];
 
@@ -591,6 +591,8 @@ static int seize_wait(long location){
     return -3;
 }
 
+#define DEBUG // FIXME
+
 static usbdevice* add_usb(usb_dev_t handle, io_object_t** rm_notify){
     int iface_count = 0, iface_success = 0;
     io_iterator_t iterator = 0;
@@ -667,6 +669,9 @@ static usbdevice* add_usb(usb_dev_t handle, io_object_t** rm_notify){
         err = (*if_handle)->USBInterfaceOpenSeize(if_handle);   // no wait_loop here because this is expected to fail
         if(err == kIOReturnSuccess){
             kb->ifusb[iface_count] = if_handle;
+#ifdef DEBUG
+            ckb_info("Adding USB handle with id %i\n", iface_count);
+#endif
             iface_success++;
             // Register for removal notification
             IOServiceAddInterestNotification(notify, iface, kIOGeneralInterest, remove_device, kb, kb->rm_notify + 1 + iface_count);
@@ -762,38 +767,50 @@ static usbdevice* add_hid(hid_dev_t handle, io_object_t** rm_notify){
     fakekb.vendor = idvendor;
     fakekb.product = idproduct;
 
-    // Handle 3 is for controlling the device (only exists for RGB)
-    if(feature == 64)
-        handle_idx = 3;
-    // Handle 2 is for Corsair inputs, unused on non-RGB
-    else if(feature == 0 &&
-            (((input == 64 ||
-               input == 15) && output == 0) ||
-            (input == 64 && output == 64) ||    // FW >= 1.20
-            (input <= 1 && output == 64)))      // FW >= 2.00 (Scimitar)
-        handle_idx = 2;
-    // Handle 0 is for BIOS mode input (RGB) or non-RGB key input
-    else if((output <= 1 && feature <= 1 &&
-                (input == 8 ||                  // Keyboards
-                 input == 7)) ||                // Mice
-            ((fwversion >= 0x300 ||             // FWv3 hack
-                IS_V3_OVERRIDE(&fakekb)) &&
-                input == 64 &&
-                output <= 2 &&
-                feature == 1))
-        handle_idx = 0;
-    // Handle 1 is for standard HID input (RGB) or media keys (non-RGB)
-    else if(output <= 1 && feature <= 1 &&
-            (input == 21 || input == 10 ||
-             input == 4 ||
-             input == 6 ||                      // Polaris' keyboard handle
-             input == 64))                      // FW >= 2.00 (Scimitar)
-        handle_idx = 1;
-    else {
-        ckb_warn("Got unknown handle (I: %d, O: %d, F: %d)\n", (int)input, (int)output, (int)feature);
-        return 0;
+    // This is getting unmaintainable now...
+    if(IS_V3_OVERRIDE(&fakekb) || fwversion >= 0x300)
+    {
+        if(feature == 64)
+            handle_idx = 1;
+        else if(input == 64 && output <= 2 && feature == 1)
+            handle_idx = 0;
+        else {
+            ckb_warn("Got unknown V3 handle (I: %d, O: %d, F: %d)\n", (int)input, (int)output, (int)feature);
+            return 0;
+        }
     }
-
+    else
+    {
+        // Handle 3 is for controlling the device (only exists for RGB)
+        if(feature == 64)
+            handle_idx = 3;
+        // Handle 2 is for Corsair inputs, unused on non-RGB
+        else if(feature == 0 &&
+                (((input == 64 ||
+                   input == 15) && output == 0) ||
+                (input == 64 && output == 64) ||    // FW >= 1.20
+                (input <= 1 && output == 64)))      // FW >= 2.00 (Scimitar)
+            handle_idx = 2;
+        // Handle 0 is for BIOS mode input (RGB) or non-RGB key input
+        else if((output <= 1 && feature <= 1 &&
+                    (input == 8 ||                  // Keyboards
+                     input == 7)))               // Mice
+            handle_idx = 0;
+        // Handle 1 is for standard HID input (RGB) or media keys (non-RGB)
+        else if(output <= 1 && feature <= 1 &&
+                (input == 21 || input == 10 ||
+                 input == 4 ||
+                 input == 6 ||                      // Polaris' keyboard handle
+                 input == 64))                      // FW >= 2.00 (Scimitar)
+            handle_idx = 1;
+        else {
+            ckb_warn("Got unknown handle (I: %d, O: %d, F: %d)\n", (int)input, (int)output, (int)feature);
+            return 0;
+        }
+    }
+    #ifdef DEBUG
+        ckb_info("Adding HID handle with id %i\n", handle_idx);
+    #endif
     // Use the location ID key to group the handles together
     uint32_t location = hidgetlong(handle, CFSTR(kIOHIDLocationIDKey));
     int index = find_device(idvendor, idproduct, location, handle_idx + 1);
