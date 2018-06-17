@@ -105,7 +105,7 @@ int os_usbsend(usbdevice* kb, const uchar* out_msg, int is_recv, const char* fil
     kern_return_t res = kIOReturnSuccess;
 
     if (kb->fwversion >= 0x120 || IS_V2_OVERRIDE(kb)){
-        int ep = (kb->fwversion >= 0x300 || IS_V3_OVERRIDE(kb)) ? 1 : (IS_SINGLE_EP(kb) ? 3 : 2); // IS_SINGLE_EP is only set like this for testing. It needs to default to 0.
+        int ep = (kb->fwversion >= 0x300 || IS_V3_OVERRIDE(kb)) ? 1 : (IS_SINGLE_EP(kb) ? 0 : 2);
         usb_iface_t h_usb = kb->ifusb[ep];
         hid_dev_t h_hid = kb->ifhid[ep];
 
@@ -768,6 +768,8 @@ static usbdevice* add_hid(hid_dev_t handle, io_object_t** rm_notify){
     fakekb.product = idproduct;
 
     // This is getting unmaintainable now...
+    // These values can be obtained by dumping the *HID* descriptor of each interface and parsing it.
+    // It's the Report Count field for Input/Output/Feature reports
     if(IS_V3_OVERRIDE(&fakekb) || fwversion >= 0x300)
     {
         if(feature == 64)
@@ -776,6 +778,17 @@ static usbdevice* add_hid(hid_dev_t handle, io_object_t** rm_notify){
             handle_idx = 0;
         else {
             ckb_warn("Got unknown V3 handle (I: %d, O: %d, F: %d)\n", (int)input, (int)output, (int)feature);
+            return 0;
+        }
+    }
+    else if(IS_SINGLE_EP(&fakekb)) // ST100 might be different
+    {
+        if(feature == 64)
+            handle_idx = 0;
+        else if(input == 6)
+            handle_id = 1; // This one is most likely useless
+        else {
+            ckb_warn("Got unknown SINGLE_EP handle (I: %d, O: %d, F: %d)\n", (int)input, (int)output, (int)feature);
             return 0;
         }
     }
@@ -800,7 +813,6 @@ static usbdevice* add_hid(hid_dev_t handle, io_object_t** rm_notify){
         else if(output <= 1 && feature <= 1 &&
                 (input == 21 || input == 10 ||
                  input == 4 ||
-                 input == 6 ||                      // Polaris' keyboard handle
                  input == 64))                      // FW >= 2.00 (Scimitar)
             handle_idx = 1;
         else {
