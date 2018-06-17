@@ -457,11 +457,17 @@ void* os_inputmain(void* context){
         free(input[i].buffer);
     return 0;
 }
+#define DEBUG // FIXME
 
 int os_setupusb(usbdevice* kb){
     kb->lastkeypress = KEY_NONE;
     // Get the device firmware version
     (*kb->handle)->GetDeviceReleaseNumber(kb->handle, &kb->fwversion);
+#ifdef DEBUG
+    int devnode = INDEX_OF(kb, keyboard);
+    ckb_info("ckb%i USB handles: 0: %p, 1: %p, 2:%p, 3: %p\n", devnode, kb->ifusb[0], kb->ifusb[1], kb->ifusb[2], kb->ifusb[3]);
+    ckb_info("ckb%i HID handles: 0: %p, 1: %p, 2:%p, 3: %p\n", devnode, kb->ifhid[0], kb->ifhid[1], kb->ifhid[2], kb->ifhid[3]);
+#endif
     return 0;
 }
 
@@ -590,8 +596,6 @@ static int seize_wait(long location){
     // Timed out
     return -3;
 }
-
-#define DEBUG // FIXME
 
 static usbdevice* add_usb(usb_dev_t handle, io_object_t** rm_notify){
     int iface_count = 0, iface_success = 0;
@@ -786,7 +790,7 @@ static usbdevice* add_hid(hid_dev_t handle, io_object_t** rm_notify){
         if(feature == 64)
             handle_idx = 0;
         else if(input == 6)
-            handle_id = 1; // This one is most likely useless
+            handle_idx = 1; // This one is most likely useless
         else {
             ckb_warn("Got unknown SINGLE_EP handle (I: %d, O: %d, F: %d)\n", (int)input, (int)output, (int)feature);
             return 0;
