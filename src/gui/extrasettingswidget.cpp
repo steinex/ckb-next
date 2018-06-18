@@ -36,27 +36,6 @@ ExtraSettingsWidget::ExtraSettingsWidget(QWidget *parent) :
     Kb::dither(dither);
     ui->ditherBox->setChecked(dither);
 
-#ifdef Q_OS_MACOS
-    // Read OSX settings
-    bool noAccel = settings.value("DisableMouseAccel").toBool();
-    Kb::mouseAccel(!noAccel);
-    ui->mAccelBox->setChecked(noAccel);
-    bool noScrollAccel = settings.value("DisableScrollAccel").toBool();
-    int scrollSpeed = settings.value("ScrollSpeed", 3).toInt();
-    ui->sAccelBox->setChecked(noScrollAccel);
-    ui->sSpeedBox->setValue(scrollSpeed);
-    Kb::scrollSpeed(noScrollAccel ? scrollSpeed : 0);
-    if(!noScrollAccel)
-        ui->sSpeedWidget->hide();
-#else
-    // Hide all OSX options on Linux
-    ui->osxLabel->hide();
-    ui->osxLine->hide();
-    ui->mAccelBox->hide();
-    ui->sAccelBox->hide();
-    ui->sSpeedWidget->hide();
-#endif
-
     // Read tray icon setting
     ui->trayBox->setChecked(settings.value("SuppressTrayIcon").toBool());
 
@@ -122,25 +101,6 @@ void ExtraSettingsWidget::pollUpdates(){
         CkbSettings::set("Program/GlobalBrightness", dimming);
         lastSharedDimming = dimming;
     }
-}
-
-void ExtraSettingsWidget::on_mAccelBox_clicked(bool checked){
-    CkbSettings::set("Program/DisableMouseAccel", checked);
-    Kb::mouseAccel(!checked);
-}
-
-void ExtraSettingsWidget::on_sAccelBox_clicked(bool checked){
-    CkbSettings::set("Program/DisableScrollAccel", checked);
-    Kb::scrollSpeed(checked ? ui->sSpeedBox->value() : 0);
-    if(checked)
-        ui->sSpeedWidget->show();
-    else
-        ui->sSpeedWidget->hide();
-}
-
-void ExtraSettingsWidget::on_sSpeedBox_valueChanged(int arg1){
-    CkbSettings::set("Program/ScrollSpeed", arg1);
-    Kb::scrollSpeed(ui->sAccelBox->isChecked() ? arg1 : 0);
 }
 
 void ExtraSettingsWidget::on_delayBox_clicked(bool checked){
