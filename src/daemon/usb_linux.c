@@ -789,7 +789,7 @@ _Atomic int suspend_run = 1;
 static time_t get_clock_monotonic_seconds() {
     struct timespec timespec_var = {0};
 
-    if(clock_gettime(CLOCK_MONOTONIC, &timespec_var))
+    if(clock_gettime(CLOCK_MONOTONIC_RAW, &timespec_var))
         ckb_err("Error in clock_gettime()\n");
 
     return timespec_var.tv_sec;
